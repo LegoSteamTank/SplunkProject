@@ -1,0 +1,202 @@
+Splunk Enterprise:
+	localhost:8000
+	bobpeep
+
+	Settings > Forwarding and Receiving > Add new > port 9997
+	Settings > Indexes > New Index > "Zeek"
+
+
+NOTE: I put Zeek and SplunkForwarder on a Ubuntu VM.  The VM is running on my Windows 10 Laptop which has Splunk Enterprise installed on it.
+
+Configure Zeek:
+	go to /usr/local/zeek/etc
+	You will see node.cfg, networks.cfg, and zeekctl.cfg
+	Leave zeekctl.cfg as is.
+	
+	In networks.cfg, put the subnets you will monitor:
+		192.168.86.0/24 Private IP space
+
+	In node.cfg, you are setting where the loggers are.  Set up this file like this:
+
+		[logger-1]
+		type=logger
+		host=localhost
+		#
+		[manager]
+		type=manager
+		host=localhost
+		#
+		[proxy-1]
+		type=proxy
+		host=localhost
+		#
+		[worker-1]
+		type=worker
+		host=localhost
+		interface=ens33
+
+	Everything else should be commented out.  ens33 is the interface of my VM.  Find out what yours is by doing ifconfig/ipconfig.
+	localhost is referring to the VM I have Zeek installed on.
+	
+	Change logs to JSON format - go to /usr/local/zeek/share/zeek/site/local.zeek and add the following line:
+		#output to JSON
+		@load policy/tuning/json-logs.zeek
+
+	To start the Zeek, go to /usr/local/zeek/bin and run the zeekctl.  I do it with:
+		sudo ./zeekctl
+
+	It should start the command line for Zeek.  Use "Start" to start, "Stop" to stop Zeek, and "Deploy" to apply the changes you've made.
+	After using a command, use "Status" to see the status of Zeek and make sure it's running properly.
+	Use "Quit" to exit out of Zeek's command line.  Zeek will still be running when you exit.
+	Use "Help" to see other commands.
+	"Restart" is a command too I think.
+
+	You can view Zeek's logs in /usr/local/zeek/logs.
+	Generate some logs by going to a website or something with the machine/VM your Zeek is installed on.
+	
+
+Configure SplunkForwarder:
+	To install SplunkForwarder, I downloaded a .deb file of SplunkForwarder and had to use dpkg to install SplunkForwarder, if I remember right.
+	I think the command was something like dpkg -i FileNameOf.deb.  If this doesn't work, use dpkg -help or something like that.  Find the -i command.	
+
+	Assuming you've installed SplunkForwarder, you can probably find it in /opt/splunkforwarder.
+
+	Go to /opt/splunkforwarder/etc/system/local.  You will see inputs.conf, outputs.conf, README, and server.conf.
+	If you don't see outputs.conf and inputs.conf, create two files of the same name.  I think when I first installed, I didn't have those two.
+
+	outputs.conf is where SplunkForwarder will forward the logs to.  Set it up with the IP address of your machine running Splunk Enterprise.  Copy and paste the lines between the =====.
+
+outputs.conf
+===================================================================================
+		[tcpout]
+		defaultGroup = default-autolb-group
+
+		[tcpout-server://192.168.86.223:9997]
+
+		[tcpout:default-autolb-group]
+		disabled = false
+		server = 192.168.86.223:9997
+
+		[tcpout-server://192.168.86.223:9997]
+=====================================================================================
+
+
+
+	inputs.conf is basically the paths to the Zeek logs that will be forwarded to Splunk Enterprise.  Copy and paste the lines between the ====.
+
+inputs.conf
+============================================================================================================
+		[default]
+		host = sensor
+
+		[monitor:///usr/local/zeek/logs/current/conn.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_conn
+
+		[monitor:///usr/local/zeek/logs/current/dns.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_dns
+
+		[monitor:///usr/local/zeek/logs/current/software.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_software
+
+		[monitor:///usr/local/zeek/logs/current/smtp.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_smtp
+
+		[monitor:///usr/local/zeek/logs/current/ssl.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_ssl
+
+		[monitor:///usr/local/zeek/logs/current/ssh.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_ssh
+
+		[monitor:///usr/local/zeek/logs/current/x509.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_x509
+
+		[monitor:///usr/local/zeek/logs/current/ftp.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_ftp
+
+		[monitor:///usr/local/zeek/logs/current/http.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_http
+
+		[monitor:///usr/local/zeek/logs/current/rdp.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_rdp
+
+		[monitor:///usr/local/zeek/logs/current/smb_files.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_smb_files
+
+		[monitor:///usr/local/zeek/logs/current/smb_mapping.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_smb_mapping
+
+		[monitor:///usr/local/zeek/logs/current/snmp.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_snmp
+
+		[monitor:///usr/local/zeek/logs/current/sip.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_sip
+
+		[monitor:///usr/local/zeek/logs/current/files.log]
+		_TCP_ROUTING = *
+		index = zeek
+		sourcetype = zeek_files
+========================================================================================
+
+
+	Go to /opt/splunkforwarder/bin
+	If this is your first time running splunkforwarder, I think use this command:
+		sudo ./splunk start --accept-license
+
+	I think you will create a user and password.
+
+	Otherwise, use this command to start it:
+		sudo ./splunk start
+
+	Make your username whatever you want.  Mine is -username: admsplunk
+
+	Use this command to see if SplunkForwarder is running:
+		sudo ./splunk status
+
+	Use this command to see if SplunkForwarder is forwarding to Splunk Enterprise:
+		sudo ./splunk list forward-server
+
+	If it shows configured, but inactive, keep in mind the IP address of the computer where Splunk Enterprise is installed.  Your home network may change your IP address every once in a while as you turn on and off devices.
+	Also, if you think you have everything configured correctly but it still doesn't work, try allowing traffic through port 9997 on your firewall.
+	I did that on my windows laptop because I was troubleshooting, but that was before I figured out I didn't have my outputs.conf correct.
+
+	If everthing is configured correctly on your zeek/splunkforwarder VM/machine, when you do 
+		sudo ./splunk status
+
+	you will see Active Forwards:  192.168.86.217:9997 or whatever your Splunk Enterprise machine's IP address is.
+
+	Go to your Splunk Enterprise.
+	Click on Search
+	In the Search bar put: index=zeek
+
+	Hopefully, you'll see a whole bunch of logs.
+	
+	
+
